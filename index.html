@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>巡回清掃報告書</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --blue: #1a3a5c; --orange: #e85d26; --bg: #f0f2f5;
+  --border: #d0d8e4; --muted: #7a8fa6; --green: #2a9d5c;
+  --red: #dc3545; --text: #1e2c3a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+.screen { display: none; min-height: 100vh; }
+.screen.active { display: block; }
+
+/* ── WORKER ── */
+.top-bar {
+  background: var(--blue); color: white;
+  padding: 14px 18px; display: flex; align-items: center; gap: 10px;
+  position: sticky; top: 0; z-index: 50;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.top-bar h1 { font-size: 15px; font-weight: 700; }
+.admin-badge {
+  margin-left: auto; background: var(--orange);
+  padding: 5px 14px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  white-space: nowrap;
+}
+.page-body { padding: 14px; max-width: 580px; margin: 0 auto; }
+
+.card { background: white; border-radius: 12px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.card-head { background: var(--blue); color: white; padding: 9px 15px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+.card-body { padding: 14px; }
+
+.f-row { margin-bottom: 12px; }
+.f-row:last-child { margin-bottom: 0; }
+.f-lbl { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 5px; letter-spacing: 0.3px; }
+.f-inp {
+  width: 100%; border: 1.5px solid var(--border); border-radius: 8px;
+  padding: 11px 13px; font-size: 15px; font-family: 'Noto Sans JP', sans-serif;
+  color: var(--text); background: #f8f9fb; outline: none;
+  transition: border-color 0.2s; -webkit-appearance: none;
+}
+.f-inp:focus { border-color: var(--blue); background: white; }
+
+.photo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.p-slot {
+  position: relative; aspect-ratio: 4/3; border-radius: 8px; overflow: hidden;
+  background: #f0f2f5; border: 2px dashed var(--border);
+  cursor: pointer; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.p-slot.has { border: 2px solid var(--blue); }
+.p-slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.p-lbl {
+  font-size: 9px; font-weight: 700; color: var(--muted); z-index: 2;
+  position: absolute; top: 3px; left: 3px;
+  background: rgba(255,255,255,0.9); padding: 1px 5px; border-radius: 3px;
+}
+.p-slot.has .p-lbl { background: rgba(26,58,92,0.8); color: white; }
+.p-ico { font-size: 20px; opacity: 0.3; }
+.p-txt { font-size: 9px; color: var(--muted); margin-top: 2px; }
+.p-slot.has .p-ico, .p-slot.has .p-txt { display: none; }
+.p-del {
+  position: absolute; top: 3px; right: 3px; z-index: 3;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(220,53,69,0.85); border: none;
+  color: white; font-size: 11px; cursor: pointer;
+  display: none; align-items: center; justify-content: center; line-height: 1;
+}
+.p-slot.has .p-del { display: flex; }
+.p-slot input[type=file] { display: none; }
+
+.sub-btn {
+  width: 100%; padding: 15px; background: var(--orange); color: white;
+  border: none; border-radius: 12px; font-size: 16px; font-weight: 700;
+  font-family: 'Noto Sans JP', sans-serif; cursor: pointer; margin-top: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background 0.2s;
+}
+.sub-btn:active { background: #c94d1a; transform: scale(0.98); }
+
+/* ── COMPLETE ── */
+#screen-complete { display:none; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:48px 24px; background:white; }
+#screen-complete.active { display:flex; }
+.ok-icon { font-size: 80px; margin-bottom: 16px; }
+.ok-title { font-size: 22px; font-weight: 700; color: var(--green); margin-bottom: 8px; }
+.ok-sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; line-height: 1.8; }
+.ok-box { background:#f0f8f4; border:1.5px solid #b2dfce; border-radius:10px; padding:14px 22px; margin-bottom:24px; text-align:left; width:100%; max-width:340px; }
+.ok-row { font-size: 13px; margin-bottom: 7px; }
+.ok-row:last-child { margin-bottom: 0; }
+.ok-lbl { font-size: 10px; color: var(--muted); display: block; margin-bottom: 1px; }
+.next-btn { background:var(--blue); color:white; border:none; border-radius:10px; padding:13px 36px; font-size:15px; font-weight:700; font-family:'Noto Sans JP',sans-serif; cursor:pointer; }
+
+/* ── ADMIN ── */
+.stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; }
+.stat { background:white; border-radius:10px; padding:12px; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.05); }
+.stat .n { font-size:26px; font-weight:700; color:var(--blue); }
+.stat .l { font-size:10px; color:var(--muted); margin-top:2px; }
+
+.rcard { background:white; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); overflow:hidden; border-left:4px solid var(--border); }
+.rcard.sub { border-left-color:#f0a030; }
+.rcard.apv { border-left-color:var(--green); }
+.rcard-top { padding:12px 14px; display:flex; align-items:center; gap:10px; }
+.rcard-info { flex:1; min-width:0; }
+.rcard-name { font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rcard-sub { font-size:11px; color:var(--muted); margin-top:2px; }
+.badge { padding:3px 9px; border-radius:20px; font-size:10px; font-weight:700; white-space:nowrap; }
+.badge.sub { background:#fff3cd; color:#856404; }
+.badge.apv { background:#d1f5e0; color:#155724; }
+.rcard-btns { padding:0 14px 12px; display:flex; gap:6px; flex-wrap:wrap; }
+.rbtn { padding:6px 12px; border-radius:7px; font-size:11px; font-weight:700; border:none; font-family:'Noto Sans JP',sans-serif; cursor:pointer; display:flex; align-items:center; gap:3px; }
+.rb-edit { background:#e8ecf3; color:var(--blue); }
+.rb-pdf { background:var(--blue); color:white; }
+.rb-apv { background:var(--green); color:white; }
+.rb-del { background:#fce8e8; color:var(--red); }
+.empty { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+
+/* ── MODAL ── */
+.modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:flex-end; justify-content:center; }
+.modal-bg.open { display:flex; }
+.modal-sheet { background:white; width:100%; max-width:580px; border-radius:18px 18px 0 0; max-height:92vh; overflow-y:auto; }
+.m-handle { text-align:center; padding:10px; }
+.m-handle div { width:34px; height:4px; background:#ddd; border-radius:2px; margin:0 auto; }
+.m-title { font-size:15px; font-weight:700; padding:0 18px 14px; }
+.m-body { padding:0 18px 18px; }
+.m-foot { padding:14px 18px; border-top:1px solid var(--border); display:flex; gap:8px; }
+
+/* ── PDF SCREEN ── */
+#screen-pdf { background:#777; }
+.pdf-bar {
+  background:var(--blue); color:white; padding:11px 18px;
+  display:flex; align-items:center; gap:10px;
+  position:sticky; top:0; z-index:50;
+}
+.pdf-bar .pb-back { cursor:pointer; font-size:17px; padding:4px 8px; }
+.pdf-bar h2 { font-size:14px; font-weight:700; }
+.pdf-bar .pb-print {
+  margin-left:auto; background:var(--orange); border:none; color:white;
+  padding:7px 16px; border-radius:7px; font-size:12px; font-weight:700;
+  font-family:'Noto Sans JP',sans-serif; cursor:pointer;
+}
+
+/* ═══════════════════════════════════════
+   PDF DOCUMENT — exact reproduction
+═══════════════════════════════════════ */
+#pdf-wrap { padding: 20px; background: #888; }
+
+#pdf-doc {
+  background: white;
+  width: 210mm;
+  margin: 0 auto;
+  font-family: 'Noto Sans JP', sans-serif;
+  color: #000;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+
+/* ── PAGE 1 Cover ── */
+.pdf-p1 {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm 22mm 18mm;
+  page-break-after: always;
+  position: relative;
+}
+.pdf-p1 .p1-date {
+  text-align: right;
+  font-size: 10.5pt;
+  margin-bottom: 30mm;
+}
+.pdf-p1 .p1-prop-name {
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 700;
+  margin-bottom: 2mm;
+}
+.pdf-p1 .p1-title {
+  text-align: center;
+  font-size: 21pt;
+  font-weight: 700;
+  letter-spacing: 8px;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  margin-bottom: 24mm;
+}
+.pdf-p1 .p1-fields { width: 86%; margin: 0 auto; }
+.pdf-p1 .p1-field {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 13mm;
+}
+.pdf-p1 .p1-field-lbl {
+  font-size: 10pt;
+  width: 110px;
+  flex-shrink: 0;
+}
+.pdf-p1 .p1-field-val {
+  flex: 1;
+  font-size: 10.5pt;
+  text-align: center;
+  border-bottom: 1px solid #333;
+  padding-bottom: 3px;
+}
+.pdf-p1 .p1-company {
+  text-align: center;
+  font-size: 15pt;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  margin-top: 32mm;
+}
+
+/* ── PAGE 2 Photos ── */
+.pdf-p2 {
+  width: 210mm;
+  height: 297mm;
+  padding: 6mm 12mm 5mm;
+  page-break-before: always;
+  page-break-after: avoid;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.p2-prop-header {
+  font-size: 10pt;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 2mm;
+  flex-shrink: 0;
+}
+
+.p2-photo-grid {
+  border: 1.5px solid #000;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(3, 68mm);
+  flex-shrink: 0;
+}
+.p2-photo-cell {
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  height: 68mm;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.p2-photo-cell:nth-child(2n) { border-right: none; }
+.p2-photo-cell:nth-last-child(-n+2) { border-bottom: none; }
+
+.p2-photo-cell .pc-label {
+  font-size: 8pt;
+  font-weight: 700;
+  padding: 1mm 2mm;
+  flex-shrink: 0;
+  display: block;
+}
+.p2-photo-cell img {
+  width: 100%;
+  flex: 1;
+  object-fit: cover;
+  display: block;
+  min-height: 0;
+}
+.p2-photo-cell .pc-empty {
+  flex: 1;
+  display: block;
+  background: #fff;
+  min-height: 0;
+}
+
+.p2-sign-box {
+  border: 1.5px solid #000;
+  margin-top: 3mm;
+  flex-shrink: 0;
+}
+.p2-sign-upper {
+  height: 13mm;
+  border-bottom: 1px solid #000;
+  display: flex;
+  align-items: flex-end;
+  padding: 1mm 3mm 2mm;
+}
+.p2-sign-upper .su-dotline {
+  width: 30mm;
+  flex-shrink: 0;
+  border-bottom: 1px dotted #555;
+  height: 0;
+  margin-bottom: 1mm;
+  margin-right: 3mm;
+}
+.p2-sign-upper .su-label {
+  font-size: 9pt;
+  flex: 1;
+  text-align: center;
+}
+.p2-sign-lower {
+  height: 13mm;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1mm 3mm 2mm;
+}
+.p2-sign-lower .sl-label {
+  font-size: 9pt;
+  text-align: center;
+}
+
+/* ── PRINT ── */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  body, #screen-pdf, #pdf-wrap { background: white !important; padding: 0 !important; }
+  .pdf-bar, .screen:not(#screen-pdf) { display: none !important; }
+  #screen-pdf { display: block !important; }
+  #pdf-wrap { padding: 0 !important; background: white !important; }
+  #pdf-doc { box-shadow: none !important; width: 100% !important; margin: 0 !important; }
+  .pdf-p1 { page-break-after: always !important; min-height: unset !important; }
+  .pdf-p2 { page-break-before: always !important; page-break-after: avoid !important; }
+
+  /* ブラウザのヘッダー・フッター（URL・日付・ページ番号）を非表示 */
+  @page {
+    margin: 0 !important;
+    size: A4 portrait;
+  }
+  /* Chromeのデフォルトmarginを上書き */
+  html { margin: 0 !important; }
+}
+
+@media (max-width: 215mm) {
+  #pdf-doc { width: 100%; }
+  .pdf-p1, .pdf-p2 { width: 100%; padding: 8px; min-height: unset; }
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 70px; left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: #333; color: white; padding: 9px 22px;
+  border-radius: 22px; font-size: 13px; opacity: 0;
+  transition: all 0.3s; z-index: 200; white-space: nowrap;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.ok { background: var(--green); }
+</style>
+</head>
+<body>
+
+<!-- ===== WORKER ===== -->
+<div id="screen-worker" class="screen active">
+  <div class="top-bar">
+    <span>📋</span>
+    <h1>巡回清掃報告書</h1>
+    <div class="admin-badge" onclick="goAdmin()">管理者 →</div>
+  </div>
+  <div class="page-body">
+
+    <div class="card">
+      <div class="card-head">📌 基本情報</div>
+      <div class="card-body">
+        <div class="f-row">
+          <div class="f-lbl">物件名 *</div>
+          <input class="f-inp" id="w-prop" type="text" placeholder="例：プレアール松島" list="dl-prop" autocomplete="off">
+          <datalist id="dl-prop"></datalist>
+        </div>
+        <div class="f-row">
+          <div class="f-lbl">管理会社名</div>
+          <input class="f-inp" id="w-comp" type="text" placeholder="例：Apaman Property株式会社" list="dl-comp" autocomplete="off">
+          <datalist id="dl-comp"></datalist>
+        </div>
+        <div class="f-row">
+          <div class="f-lbl">清掃業者名</div>
+          <input class="f-inp" id="w-clean" type="text" value="株式会社ナビタス">
+        </div>
+        <div class="f-row">
+          <div class="f-lbl">物件巡回日 *</div>
+          <input class="f-inp" id="w-date" type="date">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">📷 作業写真（最大6枚）</div>
+      <div class="card-body">
+        <div class="photo-grid" id="w-photos"></div>
+        <p style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px">写真をタップして選択・カメラ撮影</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">📝 備考（任意）</div>
+      <div class="card-body">
+        <textarea class="f-inp" id="w-notes" rows="3" placeholder="気になった点など..." style="resize:vertical;font-size:14px"></textarea>
+      </div>
+    </div>
+
+    <button class="sub-btn" onclick="submitReport()">✅ 報告書を提出する</button>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<!-- ===== COMPLETE ===== -->
+<div id="screen-complete" class="screen">
+  <div class="ok-icon">✅</div>
+  <div class="ok-title">提出完了！</div>
+  <div class="ok-sub">お疲れ様でした。<br>報告書が正常に送信されました。</div>
+  <div class="ok-box" id="ok-box"></div>
+  <button class="next-btn" onclick="goWorker()">次の報告書を作成</button>
+</div>
+
+<!-- ===== ADMIN ===== -->
+<div id="screen-admin" class="screen">
+  <div class="top-bar">
+    <span>🛠</span>
+    <h1>管理者画面</h1>
+    <div class="admin-badge" onclick="goWorker()">← 入力画面</div>
+  </div>
+  <div class="page-body">
+    <div class="stats" id="stats"></div>
+    <div id="admin-list"></div>
+  </div>
+</div>
+
+<!-- ===== PDF ===== -->
+<div id="screen-pdf" class="screen">
+  <div class="pdf-bar">
+    <span class="pb-back" onclick="goAdmin()">←</span>
+    <h2>PDF プレビュー</h2>
+    <button class="pb-print" onclick="window.print()">🖨 印刷 / PDF保存</button>
+  </div>
+  <div id="pdf-wrap">
+    <div id="pdf-doc"></div>
+  </div>
+</div>
+
+<!-- ===== EDIT MODAL ===== -->
+<div class="modal-bg" id="modal">
+  <div class="modal-sheet">
+    <div class="m-handle"><div></div></div>
+    <div class="m-title">✏️ 報告書を編集（管理者）</div>
+    <div class="m-body">
+      <div class="f-row"><div class="f-lbl">物件名</div><input class="f-inp" id="e-prop" type="text"></div>
+      <div class="f-row"><div class="f-lbl">管理会社名</div><input class="f-inp" id="e-comp" type="text"></div>
+      <div class="f-row"><div class="f-lbl">清掃業者名</div><input class="f-inp" id="e-clean" type="text"></div>
+      <div class="f-row"><div class="f-lbl">物件巡回日</div><input class="f-inp" id="e-date" type="date"></div>
+      <div class="f-row">
+        <div class="f-lbl">ステータス</div>
+        <select class="f-inp" id="e-status">
+          <option value="submitted">提出済み</option>
+          <option value="approved">承認済み</option>
+        </select>
+      </div>
+      <div class="f-row"><div class="f-lbl">備考</div><textarea class="f-inp" id="e-notes" rows="2" style="font-size:14px"></textarea></div>
+      <div class="f-lbl" style="margin-bottom:7px">作業写真</div>
+      <div class="photo-grid" id="e-photos"></div>
+    </div>
+    <div class="m-foot">
+      <button class="rbtn rb-del" style="padding:11px 18px" onclick="closeModal()">キャンセル</button>
+      <button class="rbtn rb-pdf" style="flex:1;padding:11px;font-size:13px;justify-content:center" onclick="saveEdit()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 写真選択ダイアログ -->
+<div id="choice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;align-items:flex-end;justify-content:center">
+  <div style="background:white;width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:20px 16px 32px">
+    <div style="text-align:center;font-weight:700;font-size:15px;margin-bottom:16px;color:#1a3a5c">写真を追加</div>
+    <button id="choice-cam" style="width:100%;padding:14px;margin-bottom:10px;background:#1a3a5c;color:white;border:none;border-radius:10px;font-size:15px;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer">📷 カメラで撮影</button>
+    <button id="choice-alb" style="width:100%;padding:14px;margin-bottom:10px;background:#f0f2f5;color:#1a3a5c;border:none;border-radius:10px;font-size:15px;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer">🖼 アルバムから選択</button>
+    <button onclick="closeChoice()" style="width:100%;padding:12px;background:white;color:#999;border:1px solid #d0d8e4;border-radius:10px;font-size:14px;font-family:'Noto Sans JP',sans-serif;cursor:pointer">キャンセル</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── labels ───
+const LBL_DISP = ['①','②','③','④','⑤','⑥'];
+const LBL_PDF  = ['①','②','③','④','⑤','⑥'];
+
+// ─── state ───
+let reports = [];
+let wPh = Array(6).fill(null);
+let ePh = Array(6).fill(null);
+let editId = null;
+
+try { reports = JSON.parse(localStorage.getItem('cr3') || '[]'); } catch(e) {}
+const save = () => { try { localStorage.setItem('cr3', JSON.stringify(reports)); } catch(e){} };
+
+// ─── screens ───
+const show = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); window.scrollTo(0,0); };
+const goWorker = () => { show('screen-worker'); updateLists(); };
+const goAdmin  = () => { show('screen-admin'); renderAdmin(); };
+
+// ─── init ───
+window.onload = () => {
+  document.getElementById('w-date').value = today();
+  buildGrid('w-photos', wPh, false);
+  buildGrid('e-photos', ePh, true);
+  updateLists();
+};
+
+const today = () => new Date().toISOString().split('T')[0];
+const fmtDate = s => { if (!s) return ''; const [y,m,d]=s.split('-'); return `${y}年${+m}月${+d}日`; };
+const fmtDateCover = s => { if (!s) return ''; const [y,m,d]=s.split('-'); return `${y}年　${+m}　月　${+d}　日`; };
+
+// ─── photo grid ───
+function buildGrid(cid, arr, isEdit) {
+  const g = document.getElementById(cid);
+  g.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const s = document.createElement('div');
+    s.className = 'p-slot' + (arr[i] ? ' has' : '');
+    s.innerHTML = `
+      <span class="p-lbl">作業中${LBL_DISP[i]}</span>
+      ${arr[i] ? `<img src="${arr[i]}">` : ''}
+      <div class="p-ico">📷</div><div class="p-txt">タップ</div>
+      <button class="p-del" onclick="rmPh(event,${i},${isEdit?1:0})">✕</button>
+      <input type="file" accept="image/*" capture="environment" onchange="addPh(event,${i},${isEdit?1:0})" style="display:none" id="inp-cam-${isEdit?'e':'w'}-${i}">
+      <input type="file" accept="image/*" onchange="addPh(event,${i},${isEdit?1:0})" style="display:none" id="inp-alb-${isEdit?'e':'w'}-${i}">
+    `;
+    s.addEventListener('click', e => {
+      if (e.target.classList.contains('p-del')) return;
+      showPhotoChoice(i, isEdit);
+    });
+    g.appendChild(s);
+  }
+}
+function addPh(e,i,isE) {
+  const f=e.target.files[0]; if(!f) return;
+  const isCameraCapture = f.name.toLowerCase().startsWith('image') || f.lastModified > Date.now() - 10000;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      const MAX=1200;
+      let w=img.width, h=img.height;
+      if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const data=canvas.toDataURL('image/jpeg',0.85);
+      if(isE){ePh[i]=data;buildGrid('e-photos',ePh,true);}
+      else{wPh[i]=data;buildGrid('w-photos',wPh,false);}
+      // カメラで撮影した写真をカメラロールに保存
+      saveToCameraRoll(data, i);
+    };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(f);
+}
+
+function showPhotoChoice(i, isEdit) {
+  const prefix = isEdit ? 'e' : 'w';
+  document.getElementById('choice-cam').onclick = () => {
+    closeChoice();
+    document.getElementById(`inp-cam-${prefix}-${i}`).click();
+  };
+  document.getElementById('choice-alb').onclick = () => {
+    closeChoice();
+    document.getElementById(`inp-alb-${prefix}-${i}`).click();
+  };
+  document.getElementById('choice-modal').style.display = 'flex';
+}
+function closeChoice() {
+  document.getElementById('choice-modal').style.display = 'none';
+}
+  try {
+    const a=document.createElement('a');
+    const now=new Date();
+    const fname=`seiso_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}_${index+1}.jpg`;
+    a.href=dataUrl;
+    a.download=fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch(e) {}
+}
+function rmPh(e,i,isE) {
+  e.stopPropagation();
+  if(isE){ePh[i]=null;buildGrid('e-photos',ePh,true);}else{wPh[i]=null;buildGrid('w-photos',wPh,false);}
+}
+
+// ─── submit ───
+function submitReport() {
+  const prop=document.getElementById('w-prop').value.trim();
+  const date=document.getElementById('w-date').value;
+  if(!prop){toast('物件名を入力してください');return;}
+  if(!date){toast('物件巡回日を入力してください');return;}
+  const r={
+    id:Date.now().toString(), property:prop,
+    company:document.getElementById('w-comp').value.trim(),
+    cleaner:document.getElementById('w-clean').value.trim(),
+    date, notes:document.getElementById('w-notes').value.trim(),
+    photos:[...wPh], status:'submitted', createdAt:new Date().toISOString()
+  };
+  reports.push(r); save(); updateLists();
+  document.getElementById('ok-box').innerHTML=`
+    <div class="ok-row"><span class="ok-lbl">物件名</span>${r.property}</div>
+    <div class="ok-row"><span class="ok-lbl">巡回日</span>${fmtDate(r.date)}</div>
+    <div class="ok-row"><span class="ok-lbl">写真枚数</span>${r.photos.filter(Boolean).length}枚</div>
+  `;
+  show('screen-complete');
+  ['w-prop','w-comp','w-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('w-clean').value='株式会社ナビタス';
+  document.getElementById('w-date').value=today();
+  wPh=Array(6).fill(null); buildGrid('w-photos',wPh,false);
+}
+
+// ─── admin ───
+function renderAdmin() {
+  const tot=reports.length, sub=reports.filter(r=>r.status==='submitted').length, apv=reports.filter(r=>r.status==='approved').length;
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="n">${tot}</div><div class="l">全報告書</div></div>
+    <div class="stat"><div class="n" style="color:#f0a030">${sub}</div><div class="l">未確認</div></div>
+    <div class="stat"><div class="n" style="color:var(--green)">${apv}</div><div class="l">承認済み</div></div>
+  `;
+  const el=document.getElementById('admin-list');
+  if(!reports.length){el.innerHTML='<div class="empty">📭 報告書がまだありません</div>';return;}
+  el.innerHTML=[...reports].reverse().map(r=>`
+    <div class="rcard ${r.status==='approved'?'apv':'sub'}">
+      <div class="rcard-top">
+        <div style="font-size:26px">🏢</div>
+        <div class="rcard-info">
+          <div class="rcard-name">${r.property||'（物件名なし）'}</div>
+          <div class="rcard-sub">${fmtDate(r.date)} ／ 写真${r.photos.filter(Boolean).length}枚</div>
+        </div>
+        <span class="badge ${r.status==='approved'?'apv':'sub'}">${r.status==='approved'?'✓ 承認済み':'📨 提出済み'}</span>
+      </div>
+      <div class="rcard-btns">
+        <button class="rbtn rb-edit" onclick="openEdit('${r.id}')">✏️ 編集</button>
+        <button class="rbtn rb-pdf"  onclick="showPDF('${r.id}')">📄 PDF</button>
+        ${r.status!=='approved'?`<button class="rbtn rb-apv" onclick="approve('${r.id}')">✅ 承認</button>`:''}
+        <button class="rbtn rb-del" onclick="delRpt('${r.id}')">🗑 削除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function approve(id){ const r=reports.find(r=>r.id===id); if(r){r.status='approved';save();renderAdmin();toast('承認しました','ok');} }
+function delRpt(id){ if(!confirm('削除しますか？')){return;} reports=reports.filter(r=>r.id!==id);save();renderAdmin();toast('削除しました'); }
+
+// ─── edit modal ───
+function openEdit(id){
+  const r=reports.find(r=>r.id===id); if(!r) return;
+  editId=id;
+  document.getElementById('e-prop').value=r.property||'';
+  document.getElementById('e-comp').value=r.company||'';
+  document.getElementById('e-clean').value=r.cleaner||'';
+  document.getElementById('e-date').value=r.date||'';
+  document.getElementById('e-status').value=r.status||'submitted';
+  document.getElementById('e-notes').value=r.notes||'';
+  ePh=[...(r.photos||Array(6).fill(null))]; buildGrid('e-photos',ePh,true);
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){ document.getElementById('modal').classList.remove('open'); editId=null; }
+function saveEdit(){
+  const idx=reports.findIndex(r=>r.id===editId); if(idx<0) return;
+  reports[idx]={...reports[idx],
+    property:document.getElementById('e-prop').value.trim(),
+    company:document.getElementById('e-comp').value.trim(),
+    cleaner:document.getElementById('e-clean').value.trim(),
+    date:document.getElementById('e-date').value,
+    status:document.getElementById('e-status').value,
+    notes:document.getElementById('e-notes').value.trim(),
+    photos:[...ePh]
+  };
+  save(); closeModal(); renderAdmin(); toast('保存しました','ok');
+}
+
+// ─── PDF ───
+function showPDF(id){
+  const r=reports.find(r=>r.id===id); if(!r) return;
+  document.getElementById('pdf-doc').innerHTML=makePDF(r);
+  show('screen-pdf');
+}
+
+function makePDF(r){
+  const LBL = ['①','②','③','④','⑤','⑥'];
+  const cells = r.photos.map((p,i)=>`
+    <div class="p2-photo-cell">
+      <span class="pc-label">【作業中${LBL[i]}】</span>
+      ${p ? `<img src="${p}" alt="作業中${LBL[i]}">` : '<div class="pc-empty"></div>'}
+    </div>
+  `).join('');
+
+  const [yr,mo,dy] = (r.date||'--').split('-');
+  const dateStr  = r.date ? `${yr}年${+mo}月${+dy}日` : '';
+  const dateLine = r.date ? `${yr}年　${+mo}　月　　${+dy}　日` : '';
+
+  return `
+  <!-- ===== PAGE 1 ===== -->
+  <div class="pdf-p1">
+    <div class="p1-date">${dateStr}</div>
+    <div class="p1-title">巡 回 清 掃 報 告 書</div>
+    <div class="p1-fields">
+      <div class="p1-field">
+        <div class="p1-field-lbl">物件名</div>
+        <div class="p1-field-val">${r.property||''}</div>
+      </div>
+      <div class="p1-field">
+        <div class="p1-field-lbl">物件巡回日</div>
+        <div class="p1-field-val">${dateLine}</div>
+      </div>
+      <div class="p1-field">
+        <div class="p1-field-lbl">清掃業者名</div>
+        <div class="p1-field-val">${r.cleaner||''}</div>
+      </div>
+    </div>
+    <div class="p1-company">${r.company||''}</div>
+  </div>
+
+  <!-- ===== PAGE 2 ===== -->
+  <div class="pdf-p2">
+    <div class="p2-prop-header">【物件名：　${r.property||''}　】</div>
+    <div class="p2-photo-grid">${cells}</div>
+    <div class="p2-sign-box">
+      <div class="p2-sign-upper">
+        <span class="su-dotline"></span>
+        <span class="su-label">【清掃業者：${r.cleaner||''}】</span>
+      </div>
+      <div class="p2-sign-lower">
+        <span class="sl-label">【管理会社：${r.company||''}】</span>
+      </div>
+    </div>
+    ${r.notes ? `<div style="border:1px solid #000;margin-top:2mm;padding:2mm 4mm;font-size:8pt;white-space:pre-wrap;flex-shrink:0">${r.notes}</div>` : ''}
+  </div>
+  `;
+}
+
+// ─── utils ───
+function updateLists(){
+  document.getElementById('dl-prop').innerHTML=[...new Set(reports.map(r=>r.property).filter(Boolean))].map(p=>`<option value="${p}">`).join('');
+  document.getElementById('dl-comp').innerHTML=[...new Set(reports.map(r=>r.company).filter(Boolean))].map(c=>`<option value="${c}">`).join('');
+}
+function toast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show'+(type?' '+type:'');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+</script>
+</body>
+</html>
