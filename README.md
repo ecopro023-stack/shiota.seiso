@@ -1,1 +1,0 @@
-# shiota.seiso
